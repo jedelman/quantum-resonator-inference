@@ -1,3 +1,26 @@
+---
+title: "Quantum Resonator Inference"
+subtitle: "System Design Document"
+author: "Jason Edelman"
+date: "2026-04-28"
+geometry: "margin=0.85in"
+fontsize: 10pt
+linestretch: 1.25
+toc: true
+toc-depth: 3
+numbersections: true
+---
+
+\newpage
+
+# Quantum Resonator Inference: System Design Document
+
+**Generated:** 2026-04-28
+**Status:** ARCH-1 through ARCH-17 LOCKED. Experimental validation phase.
+**Repo:** https://github.com/jedelman/quantum-resonator-inference
+
+---
+
 # Quantum Resonator Inference — Architecture Specification
 
 **Status:** ARCH-1 through ARCH-17 LOCKED
@@ -611,3 +634,386 @@ Training stability requires signal-to-gradient ratio >10:1 (satisfied at 40dB SN
 | 15 | Loss landscape | ✓ LOCKED | L_optical ≈ L_digital with phase calibration. Batch size >1 required. |
 | 16 | Rank scaling | ✓ LOCKED | Production rank-100, ceiling rank-200. Hybrid HG/LG basis. |
 | 17 | Clone scaling | ✓ LOCKED (2026-04-26) | Clone-and-fine-tune viable conditional on manufacturing consistency. EXP-7B validates. |
+
+
+\newpage
+
+# Architecture Cross-Check
+
+All architecture decisions validated for mutual consistency by `analyze/arch_crosscheck.py`.
+
+```
+================================================================================
+ARCHITECTURE CROSS-CHECK: ARCH-1 through ARCH-10
+================================================================================
+
+ARCH-1 ↔ ARCH-2      ✓ PASS     ARCH-1 ↔ ARCH-2: Resonator geometry supports wave RNN primitive
+ARCH-2 ↔ ARCH-3      ✓ PASS     ARCH-2 ↔ ARCH-3: Geometry supports 512 modes with 14.5× margin
+ARCH-3 ↔ ARCH-4      ✓ PASS     ARCH-3 ↔ ARCH-4: 512 modes transport 75M tok/s with 13.3ns latency
+ARCH-4 ↔ ARCH-5      ✓ PASS     ARCH-4 ↔ ARCH-5: 75M tok/s achieves 40dB SNR with 2.5mW input
+ARCH-5 ↔ ARCH-6      ✓ PASS     ARCH-5 ↔ ARCH-6: 40dB SNR supports coherent Hebbian via 532nm
+ARCH-6 ↔ ARCH-7      ✓ PASS     ARCH-6 ↔ ARCH-7: Rank-50 factorization (1.23M params) fits in 1000 multiplexed gratings
+ARCH-7 ↔ ARCH-8      ✓ PASS     ARCH-7 ↔ ARCH-8: Holographic weights readable via Homodyne detection
+ARCH-8 ↔ ARCH-9      ✓ PASS     ARCH-8 ↔ ARCH-9: ReLU on intensity. A²=1.20, θ=0.5mW, V_TIA=1000mV ✓
+ARCH-9 ↔ ARCH-10     ✓ PASS     ARCH-9 ↔ ARCH-10: VCSEL external to cavity (15K rise is glass, not VCSEL). VCSEL self-heating ~7.6K → ΔI_th~3.8mA, compensated by APC loop.
+Full Integration     ✓ PASS     ARCH-1 through ARCH-10 fully integrated and mutually consistent
+NARG Compat          ✓ PASS     NARG: disabled (baseline mode)
+PTYCH Compat         ✓ PASS     PTYCHOGRAPHY: disabled (standard holography)
+NARG+PTYCH           ✓ PASS     NARG+PTYCH: not both enabled (no interaction)
+
+================================================================================
+RESULT: All architecture decisions LOCKED and mutually consistent.
+Ready for experimental validation phase (EXP-2 through EXP-5, EXP-7).
+================================================================================
+```
+
+\newpage
+
+# Experimental Validation Tasks
+
+# Tasks
+## Convention
+- `[ ]` open
+- `[x]` done
+- Priority: HIGH / MED / LOW
+
+---
+
+## Literature Investigation
+
+### From ONN Review (Fu et al. 2024, Light: Sci. & Appl.)
+
+**Foundational papers — HIGH priority**
+- [ ] Lin et al. 2018, Science — "All-optical machine learning using diffractive deep neural networks" — D2NN original. Rayleigh-Sommerfeld propagation as forward pass. Training via backprop on phase masks. Key for understanding D2NN geometry and its limits.
+- [ ] Shen et al. 2017, Nature Photonics — "Deep learning with coherent nanophotonic circuits" — MZI mesh ONN, SVD-based weight decomposition, first integrated ONN chip. Establishes unitary constraint and its consequences.
+- [ ] Psaltis et al. 1990, Nature — "Holography in artificial neural networks" — Foundational. Photoreactive crystals for nonlinearity in ONNs. Directly relevant: holography + NN from first principles.
+- [ ] Farhat et al. 1985, Appl. Opt. — "Optical implementation of the Hopfield model" — First optical neural network. Understand the original motivation and what was achieved.
+- [ ] Reck et al. 1994, Phys. Rev. Lett. — "Experimental realization of any discrete unitary operator" — Beam splitter + phase shifter decomposition of arbitrary unitary. Foundation of MZI mesh approach.
+
+**Nonlinearity papers — HIGH priority**
+- [ ] Feldmann et al. 2019, Nature — "All-optical spiking neurosynaptic networks with self-learning capabilities" — PCM + MRR spiking ONN. Nonlinearity via PCM state switch. Understand endurance limits.
+- [ ] Feldmann et al. 2021, Nature — "Parallel convolutional processing using an integrated photonic tensor core" — PCM + microcomb, TOPS-scale. Understand architecture and why PCM failed for our use case.
+- [ ] Zhong et al. 2023, Nature Communications — "Graphene/silicon heterojunction for reconfigurable phase-relevant activation function" — All-optical nonlinearity without PCM. Promising alternative. Investigate saturation behavior, loss, bandwidth.
+
+**Reservoir computing — MED priority**
+- [ ] Duport et al. 2012, Opt. Express — "All-optical reservoir computing" — SOA delay-loop reservoir. First all-optical reservoir. Understand connection to resonator recurrence.
+- [ ] Hughes et al. 2019, Sci. Adv. — "Wave physics as an analog recurrent neural network" — Scattering matrix of a wave medium IS an RNN. Directly relevant to resonator-as-computation concept.
+
+**Integrated platforms — MED priority**
+- [ ] Bogaerts et al. 2020, Nature — "Programmable photonic circuits" — State of art programmable PICs. Understand what's achievable in integrated optics.
+- [ ] Xu et al. 2021, Nature — "11 TOPS photonic convolutional accelerator" — Optical frequency comb + WDM for convolution. Time-wavelength interleaving. Key for throughput comparison.
+
+**Scaling / energy — LOW priority (but read abstracts)**
+- [ ] Xu et al. 2024, Science — "Large-scale photonic chiplet Taichi empowers 160-TOPS/W" — Latest energy efficiency benchmark for optical compute.
+
+---
+
+### From Dual-Comb Holography (Vicentini et al. 2021, Nat. Photonics)
+
+**HIGH priority**
+- [ ] Picqué & Hänsch 2019, Nat. Photonics — "Frequency comb spectroscopy" — Review of dual-comb technique. Essential for understanding frequency-multiplex token encoding.
+- [ ] Shams-Ansari et al. 2020, arXiv:2003.04533 — "Integrated lithium-niobate electro-optic platform for spectrally tailored dual-comb spectroscopy" — TFLN micro-ring dual-comb. Directly bridges our modulator platform to frequency-comb encoding.
+
+**MED priority**
+- [ ] Coddington et al. 2009, Nat. Photonics — "Rapid and precise absolute distance measurements" — Dual-comb ranging. Understand coherence and precision limits.
+- [ ] Ideguchi et al. 2013, Nature — "Coherent Raman spectro-imaging with laser frequency combs" — Dual-comb with nonlinear process. Nonlinear optics + comb = interesting for all-optical nonlinearity.
+
+---
+
+## Architecture Derivation Tasks
+
+- [x] ARCH-1: Identify the optical primitive — What is the natural optical operation corresponding to MVM? Compare: (a) 4f holographic diffraction, (b) MZI interference, (c) resonant mode coupling, (d) parametric interaction. Derive from Maxwell's equations, not analogy.
+- [ ] ARCH-2: Resonator geometry choice — Fabry-Perot vs ring vs bowtie vs Sagnac. Criteria: (a) round-trip loss budget, (b) mode volume, (c) FSR vs token bandwidth, (d) mechanical stability.
+- [x] ARCH-3: Nonlinearity mechanism — CLOSED 2026-04-27. Activation function is intensity squaring via VCSEL driver (I_drive ∝ I_detected). No optical nonlinearity required. Kerr, saturable absorber, EIT all retired.
+- [ ] ARCH-4: Token encoding — How does a token embedding vector enter the resonator? Map options to optical degrees of freedom.
+- [ ] ARCH-5: Learning mechanism — Are weights static (fab-time) or in-situ tunable? What does "learning" mean physically for a resonator?
+
+---
+
+## Experimental Validation Tasks
+
+- [x] EXP-1 (CLOSED 2026-04-27): PTR χ³ @ 850nm CW — CLOSED. Kerr SPM retired from architecture (ARCH-9 revised). Activation function is now intensity squaring via VCSEL driver electronics. PTR n₂ measurement no longer architecturally relevant.
+- [ ] EXP-2 (HIGH): Two-wavelength photosensitivity — PTR @ 532nm write + 850nm read simultaneously. Confirm no cross-sensitization degrading the read signal.
+- [ ] EXP-3 (HIGH): Hebbian grating growth rate — measure Δn vs. 532nm exposure time. Target: reach Δn = 5×10⁻³ in < 1000 inference passes.
+- [ ] EXP-4 (HIGH): Thermal lensing dn/dT — measure cavity stability under 2-3W CW intra-cavity load. Acceptable drift: < 5 mrad/hour.
+- [ ] EXP-5 (MED): Homodyne phase-lock stability — VCSEL frequency lock margin vs. thermal drift. Target: PID lock stable over 1-hour inference run.
+- [x] EXP-6 (CLOSED 2026-04-26): LiNbO3 MZM insertion loss @ 850nm — CLOSED. MZM removed from design (ARCH-11 revised). Intra-cavity MZM disqualified: 0.1 dB/pass × T=100 = 10 dB cumulative loss. No longer relevant.
+- [ ] EXP-7 (HIGH): In-situ training convergence rate — train a small holographic RNN (rank-10, single layer) using the two-wavelength iterative write-develop protocol. Measure loss vs. write-develop cycle number. Target: convergence to within 2% of digital baseline in ≤5 cycles. If slower, characterize dominant error source: gradient encoding fidelity vs. thermal development precision vs. cavity reinstallation repeatability (kinematic mount).
+
+- [ ] INFRA-1: Add PDF fetching to generate_sysdoc.py — download full PDFs where DOI is available, store in citations/
+- [ ] INFRA-2: Add design/render_resonator.py — placeholder renderer for resonator geometry diagrams
+- [ ] INFRA-3: Set up conversations/ log rotation — one file per session
+
+
+---
+
+## Architecture Derivation Tasks (derived from ARCH-1)
+
+- [x] ARCH-1: Optical primitive LOCKED — Fabry-Perot resonator as wave RNN (Hughes 2019 mapping)
+- [ ] ARCH-2: Resonator geometry — derive L, mirror R, round-trips T_max from loss budget and SNR requirement
+- [ ] ARCH-3: Mode structure — derive aperture size from d=512 embedding; confirm N ≥ 512 orthogonal modes fit
+- [ ] ARCH-4: Token throughput — derive token rate from L and T (tau = 2L/c, rate = 1/T*tau)
+- [ ] ARCH-5: SNR budget — derive noise accumulation over T round trips; confirm 6-bit precision achievable
+- [ ] ARCH-6: Training pipeline — adjoint method for wave dynamics; compute UV hologram from Δn(x,y)
+- [ ] ARCH-7: Hologram capacity — how many weight matrix parameters fit in PTR plate at 50um pitch?
+- [ ] ARCH-8: Interposer — confirm Glass Brain design reusable; derive changes needed for resonator vs. feedforward
+
+
+
+\newpage
+
+# Material Properties
+
+### `ptr_glass`
+*Photo-thermo-refractive glass for holographic recording*
+
+- **wavelength_range_nm**: [300, 3000]
+- **max_refractive_index_change**: 0.005
+- **absorption_coefficient_per_cm**: 0.01
+- **diffraction_efficiency_max**: 0.99
+- **write_wavelength_nm**: 325
+- **erase_wavelength_nm**: 0
+- **thermal_stability_C**: 400
+
+> Cite: Glebov 2010, Proc. SPIE 7504, doi:10.1117/12.838767
+
+### `linbo3_tfln`
+*Thin-film lithium niobate electro-optic modulator platform*
+
+- **half_wave_voltage_V**: 1.5
+- **bandwidth_GHz**: 100
+- **propagation_loss_dB_per_cm**: 0.27
+- **coupling_loss_dB**: 0.5
+- **pockels_coefficient_r33_pm_per_V**: 30.9
+
+> Cite: Wang et al. 2018, Nature, doi:10.1038/s41586-018-0551-y
+
+### `sin_pic_a150`
+*Ligentec A150 silicon nitride PIC platform, NIR optimized*
+
+- **wavelength_range_nm**: [700, 1060]
+- **propagation_loss_dB_per_m**: 3.0
+- **minimum_bend_radius_um**: 10
+- **coupling_loss_fiber_to_chip_dB**: 1.5
+- **platform**: Ligentec A150
+
+> Cite: Ligentec A150 PDK documentation, https://www.ligentec.com/products/a150/
+
+### `gaas_vcsel_850nm`
+*GaAs vertical-cavity surface-emitting laser at 850nm*
+
+- **threshold_current_mA**: 0.5
+- **slope_efficiency_W_per_A**: 0.6
+- **wall_plug_efficiency**: 0.35
+- **linewidth_MHz**: 50
+- **coherence_length_m**: 3.0
+- **modulation_bandwidth_GHz**: 10
+
+> Cite: Iga 2000, IEEE J. Sel. Top. Quantum Electron., doi:10.1109/2944.902166
+
+### `ingaas_pin_detector`
+*InGaAs PIN photodetector, telecom/NIR*
+
+- **responsivity_A_per_W**: 0.85
+- **bandwidth_GHz**: 50
+- **dark_current_nA**: 1.0
+- **noise_equivalent_power_W_per_rtHz**: 1e-14
+
+> Cite: Bowers & Burrus 1987, J. Lightwave Technol., doi:10.1109/JLT.1987.1075507
+
+### `si_pin_detector_850nm`
+*Silicon PIN photodetector at 850nm*
+
+- **responsivity_A_per_W**: 0.6
+- **bandwidth_GHz**: 10
+- **dark_current_nA**: 0.1
+
+> Cite: Saleh & Teich, Fundamentals of Photonics, 3rd Ed., Ch. 18
+
+### `silica_fiber_smf28`
+*Corning SMF-28 single-mode fiber*
+
+- **attenuation_dB_per_km_1550nm**: 0.18
+- **attenuation_dB_per_km_1310nm**: 0.35
+- **attenuation_dB_per_km_850nm**: 2.5
+- **core_diameter_um**: 8.2
+- **numerical_aperture**: 0.14
+
+> Cite: Corning SMF-28 Ultra datasheet, 2023, https://www.corning.com/media/worldwide/coc/documents/Fiber/SMF-28%20Ultra.pdf
+
+### `gaas_vcsel_850nm_single_mode`
+*Single-mode GaAs VCSEL at 850nm with narrow linewidth for coherent resonator operation*
+
+- **linewidth_MHz**: 10
+- **coherence_length_m**: 30.0
+- **threshold_current_mA**: 1.0
+- **modulation_bandwidth_GHz**: 5
+
+> Note: Oxide-confined single-mode VCSEL. Broader multimode VCSEL (50MHz, 6m l_c) insufficient for T>60 at L=20mm.
+
+> Cite: Larsson 2011, IEEE J. Sel. Top. Quantum Electron. 17(6):1551, doi:10.1109/JSTQE.2011.2114837
+
+
+\newpage
+
+# Design Parameters
+
+### `optical`
+
+| Parameter | Value |
+|:---|:---|
+| wavelength_nm | `850` |
+
+### `token_embedding`
+
+| Parameter | Value |
+|:---|:---|
+| dimension | `512` |
+
+### `resonator`
+
+| Parameter | Value |
+|:---|:---|
+| geometry | `Fabry-Perot` |
+| medium | `PTR_glass` |
+| round_trips_T | `100` |
+| cavity_length_L_mm | `20` |
+| mirror_reflectivity_R | `0.999` |
+
+### `spatial`
+
+| Parameter | Value |
+|:---|:---|
+| pixel_pitch_um | `50` |
+| aperture_mm | `2.5` |
+
+### `snr`
+
+| Parameter | Value |
+|:---|:---|
+| target_bits | `6` |
+| target_snr_dB | `38.0` |
+
+### `interposer`
+
+| Parameter | Value |
+|:---|:---|
+| detector | `Si_PIN_850nm` |
+| amplifier | `TIA_180nm_CMOS` |
+| nonlinearity | `analog_comparator_GeLU` |
+| emitter | `GaAs_VCSEL_850nm` |
+| latency_ns_per_layer | `67` |
+| power_W_per_head | `1.32` |
+
+### `model`
+
+| Parameter | Value |
+|:---|:---|
+| target_params | `TBD` |
+| layers | `TBD` |
+| embedding_dim | `512` |
+
+### `power`
+
+| Parameter | Value |
+|:---|:---|
+| facility_W | `TBD` |
+| target_per_token_mJ | `TBD` |
+
+
+\newpage
+
+# Economic Analysis (5-Year TCO)
+
+```
+================================================================================
+HYPERSCALE vs. QRI ECONOMIC COMPARISON
+================================================================================
+
+--- CAPITAL COSTS ---
+Compute/Hardware                            $100.0B              $800.0M
+Memory/Networking                            $42.5B                    —
+Assembly                                          —              $200.0M
+Control Electronics                               —                $2.0M
+Facilities                                  $900.0M               $38.5M
+----------------------------------------------------------------------
+TOTAL CAPITAL                               $143.4B                $1.0B
+Capital Advantage (ratio)       Hyperscale baseline         138× cheaper
+
+--- ANNUAL OPERATIONS ---
+Energy                                        $1.8B               $30.9M
+Personnel                                   $225.0M                $2.2M
+Maintenance                                  $28.7B               $40.0M
+----------------------------------------------------------------------
+ANNUAL OpEx                                  $30.8B               $73.1M
+OpEx Advantage (ratio)          Hyperscale baseline         422× cheaper
+
+--- 5-YEAR TOTAL COST OF OWNERSHIP ---
+Capital                                     $143.4B                $1.0B
+OpEx ({} years)                             $154.0B              $365.3M
+----------------------------------------------------------------------
+TOTAL 5-YEAR TCO                           $297.4B                $1.4B
+TCO Advantage (ratio)           Hyperscale baseline         212× cheaper
+
+--- COST PER TOKEN (amortized over 5 years) ---
+Cost per token                             2.51e-05             1.19e-07
+Token Cost Advantage            Hyperscale baseline         212× cheaper
+
+--- POWER & ENVIRONMENTAL IMPACT ---
+Annual energy (kWh)                         1.5e+10              3.5e+08
+Annual CO₂ (kg @ 0.4kg/kWh)                 6.1e+09              1.4e+08
+Carbon Reduction Ratio          Hyperscale baseline            44× lower
+
+--- THROUGHPUT EFFICIENCY ---
+Total power draw (W)                        1.8e+09           40000016.0
+Tokens/sec per Watt                             0.0                    2
+Efficiency Advantage            Hyperscale baseline           44× better
+
+--- PAYBACK PERIOD ---
+Annual savings vs hyperscale                 $30.7B
+QRI capital investment                        $1.0B
+Payback period (100% efficiency)           0.4 months
+Payback period (50% efficiency)           0.8 months
+
+================================================================================
+```
+
+\newpage
+
+# Performance Scenarios
+
+```
+========================================================================================================================
+QRI PERFORMANCE: Baseline vs. Path A/B/C
+========================================================================================================================
+
+Metric                         Baseline             Path A (Cons)        Path B (Rec)         Path C (Agg)        
+------------------------------------------------------------------------------------------------------------------------
+SNR (dB)                       40.0                 40.0                 48.0                 48.0                
+NARG positions                 1                    16                   128                  128                 
+Throughput (M tok/s)           75.0                 75.0                 75.0                 75.0                
+Latency per-pos (ns)           13.30                0.831                0.104                0.104               
+Latency gain (×)               —                    16.0                 128.0                128.0               
+Parameters (M)                 1.23                 1.23                 1.23                 2.46                
+Power (mW)                     86.0                 94.6                 99.6                 101.6               
+Efficiency gain (×)            —                    0.91                 0.86                 0.85                
+Write overhead (%)             0                    10                   10                   13                  
+Timeline (weeks)               0                    2                    6                    8                   
+Cost ($k)                      0                    0                    5                    6                   
+Ptychography                   No                   No                   No                   ✓ Yes (2×)          
+
+========================================================================================================================
+
+RECOMMENDATION: Path B (SNR upgrade + NARG 128)
+  • 8-16× latency improvement
+  • Realistic electronics (no exotic parts)
+  • Unlocks ptychography as well (marginal write SNR)
+  • $5k cost, 4-6 week timeline
+  • Medium risk (TIA fab), medium-high reward
+
+========================================================================================================================
+```
+
+---
+
+*End of document. Generated by `analyze/build_pdf_report.py` on 2026-04-28.*
